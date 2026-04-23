@@ -2,7 +2,10 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Unfair Flips">
     <title>Unfair Flips</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
@@ -38,6 +41,7 @@
             align-items: center;
             justify-content: flex-start;
             overflow-x: hidden;
+            overscroll-behavior: none;
             touch-action: manipulation;
         }
 
@@ -674,28 +678,37 @@
             inset: 0;
             background: var(--bg);
             display: none;
-            align-items: center;
-            justify-content: center;
             z-index: 2000;
-            padding: 20px;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .admin-overlay.show {
-            display: flex;
+            display: block;
         }
 
         .admin-panel {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 20px;
+            border-radius: 0;
             width: 100%;
-            max-width: 420px;
-            padding: 28px;
+            max-width: 480px;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 28px 20px;
             display: flex;
             flex-direction: column;
             gap: 16px;
             animation: slideUp 0.3s ease;
+            margin: 0 auto;
+        }
+
+        @media (min-width: 480px) {
+            .admin-panel {
+                border-radius: 20px;
+                min-height: auto;
+                margin: 20px auto;
+            }
         }
 
         @keyframes slideUp {
@@ -956,6 +969,11 @@
             border-color: var(--danger);
             color: var(--danger);
         }
+
+        input, textarea {
+            user-select: text;
+            -webkit-user-select: text;
+        }
     </style>
 </head>
 <body>
@@ -1140,12 +1158,36 @@
                     <input type="number" id="adminProbLevel" step="1" min="0" max="50">
                 </div>
                 <div class="admin-row">
+                    <label>概率基础成本</label>
+                    <input type="number" id="adminProbBaseCost" step="0.01" min="0">
+                </div>
+                <div class="admin-row">
+                    <label>概率效果幅度</label>
+                    <input type="number" id="adminProbEffect" step="0.001" min="0">
+                </div>
+                <div class="admin-row">
                     <label>价值等级</label>
                     <input type="number" id="adminValueLevel" step="1" min="0" max="100">
                 </div>
                 <div class="admin-row">
+                    <label>价值基础成本</label>
+                    <input type="number" id="adminValueBaseCost" step="0.01" min="0">
+                </div>
+                <div class="admin-row">
+                    <label>价值效果幅度</label>
+                    <input type="number" id="adminValueEffect" step="0.001" min="0">
+                </div>
+                <div class="admin-row">
                     <label>倍率等级</label>
                     <input type="number" id="adminMultLevel" step="1" min="0" max="50">
+                </div>
+                <div class="admin-row">
+                    <label>倍率基础成本</label>
+                    <input type="number" id="adminMultBaseCost" step="0.01" min="0">
+                </div>
+                <div class="admin-row">
+                    <label>倍率效果幅度</label>
+                    <input type="number" id="adminMultEffect" step="0.01" min="0">
                 </div>
             </div>
 
@@ -1212,20 +1254,29 @@
             }
         };
 
+        function getUpgradeConfig(type) {
+            return {
+                baseCost: game['_' + type + 'BaseCost'] !== undefined ? game['_' + type + 'BaseCost'] : upgrades[type].baseCost,
+                costMult: game['_' + type + 'CostMult'] !== undefined ? game['_' + type + 'CostMult'] : upgrades[type].costMult,
+                effect: game['_' + type + 'Effect'] !== undefined ? game['_' + type + 'Effect'] : upgrades[type].effect,
+                maxLevel: upgrades[type].maxLevel
+            };
+        }
+
         // Computed Stats
         function getProb() {
             if (game._adminProb !== undefined) return game._adminProb;
-            return Math.min(0.20 + game.probLevel * upgrades.prob.effect, 0.75);
+            return Math.min(0.20 + game.probLevel * getUpgradeConfig('prob').effect, 0.75);
         }
 
         function getValue() {
             if (game._adminValue !== undefined) return game._adminValue;
-            return 0.01 + game.valueLevel * upgrades.value.effect;
+            return 0.01 + game.valueLevel * getUpgradeConfig('value').effect;
         }
 
         function getMult() {
             if (game._adminMult !== undefined) return game._adminMult;
-            return 1 + game.multLevel * upgrades.mult.effect;
+            return 1 + game.multLevel * getUpgradeConfig('mult').effect;
         }
 
         function getTargetStreak() {
@@ -1234,7 +1285,7 @@
         }
 
         function getCost(type) {
-            const u = upgrades[type];
+            const u = getUpgradeConfig(type);
             const level = game[type + 'Level'];
             return u.baseCost * Math.pow(u.costMult, level);
         }
@@ -1276,7 +1327,7 @@
             ['prob', 'value', 'mult'].forEach(type => {
                 const cost = getCost(type);
                 const level = game[type + 'Level'];
-                const u = upgrades[type];
+                const u = getUpgradeConfig(type);
                 const canAfford = game.coins >= cost;
                 const maxed = level >= u.maxLevel;
 
@@ -1586,11 +1637,13 @@
         function showAdminPanel() {
             hidePasswordModal();
             syncAdminUI();
+            document.body.style.overflow = 'hidden';
             document.getElementById('adminOverlay').classList.add('show');
         }
 
         function hideAdminPanel() {
             document.getElementById('adminOverlay').classList.remove('show');
+            document.body.style.overflow = '';
         }
 
         function syncAdminUI() {
@@ -1610,8 +1663,16 @@
             document.getElementById('adminTarget').value = getTargetStreak();
 
             document.getElementById('adminProbLevel').value = game.probLevel;
+            document.getElementById('adminProbBaseCost').value = (game._probBaseCost !== undefined ? game._probBaseCost : upgrades.prob.baseCost).toFixed(2);
+            document.getElementById('adminProbEffect').value = (game._probEffect !== undefined ? game._probEffect : upgrades.prob.effect).toFixed(3);
+
             document.getElementById('adminValueLevel').value = game.valueLevel;
+            document.getElementById('adminValueBaseCost').value = (game._valueBaseCost !== undefined ? game._valueBaseCost : upgrades.value.baseCost).toFixed(2);
+            document.getElementById('adminValueEffect').value = (game._valueEffect !== undefined ? game._valueEffect : upgrades.value.effect).toFixed(3);
+
             document.getElementById('adminMultLevel').value = game.multLevel;
+            document.getElementById('adminMultBaseCost').value = (game._multBaseCost !== undefined ? game._multBaseCost : upgrades.mult.baseCost).toFixed(2);
+            document.getElementById('adminMultEffect').value = (game._multEffect !== undefined ? game._multEffect : upgrades.mult.effect).toFixed(2);
 
             document.getElementById('adminExport').value = '';
             document.getElementById('adminImport').value = '';
@@ -1664,6 +1725,12 @@
                 if (typeof data.probLevel === 'number') game.probLevel = data.probLevel;
                 if (typeof data.valueLevel === 'number') game.valueLevel = data.valueLevel;
                 if (typeof data.multLevel === 'number') game.multLevel = data.multLevel;
+                if (typeof data._probBaseCost === 'number') game._probBaseCost = data._probBaseCost;
+                if (typeof data._probEffect === 'number') game._probEffect = data._probEffect;
+                if (typeof data._valueBaseCost === 'number') game._valueBaseCost = data._valueBaseCost;
+                if (typeof data._valueEffect === 'number') game._valueEffect = data._valueEffect;
+                if (typeof data._multBaseCost === 'number') game._multBaseCost = data._multBaseCost;
+                if (typeof data._multEffect === 'number') game._multEffect = data._multEffect;
                 game.isFlipping = false;
                 saveGame();
                 updateUI();
@@ -1709,6 +1776,12 @@
             const probLevel = parseInt(document.getElementById('adminProbLevel').value);
             const valueLevel = parseInt(document.getElementById('adminValueLevel').value);
             const multLevel = parseInt(document.getElementById('adminMultLevel').value);
+            const probBaseCost = parseFloat(document.getElementById('adminProbBaseCost').value);
+            const probEffect = parseFloat(document.getElementById('adminProbEffect').value);
+            const valueBaseCost = parseFloat(document.getElementById('adminValueBaseCost').value);
+            const valueEffect = parseFloat(document.getElementById('adminValueEffect').value);
+            const multBaseCost = parseFloat(document.getElementById('adminMultBaseCost').value);
+            const multEffect = parseFloat(document.getElementById('adminMultEffect').value);
 
             // Apply player stats
             if (!isNaN(coins) && coins >= 0) game.coins = coins;
@@ -1736,6 +1809,14 @@
             if (!isNaN(probLevel) && probLevel >= 0) game.probLevel = probLevel;
             if (!isNaN(valueLevel) && valueLevel >= 0) game.valueLevel = valueLevel;
             if (!isNaN(multLevel) && multLevel >= 0) game.multLevel = multLevel;
+
+            // Apply upgrade config
+            if (!isNaN(probBaseCost) && probBaseCost >= 0) game._probBaseCost = probBaseCost;
+            if (!isNaN(probEffect) && probEffect >= 0) game._probEffect = probEffect;
+            if (!isNaN(valueBaseCost) && valueBaseCost >= 0) game._valueBaseCost = valueBaseCost;
+            if (!isNaN(valueEffect) && valueEffect >= 0) game._valueEffect = valueEffect;
+            if (!isNaN(multBaseCost) && multBaseCost >= 0) game._multBaseCost = multBaseCost;
+            if (!isNaN(multEffect) && multEffect >= 0) game._multEffect = multEffect;
 
             game.isFlipping = false;
             saveGame();
