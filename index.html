@@ -464,6 +464,85 @@
             100% { opacity: 0; transform: translateY(-50px) scale(1.2); }
         }
 
+        /* Coin Edge Line */
+        .coin-edge-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 0;
+            transform: translate(-50%, -50%);
+            background: var(--accent);
+            border-radius: 2px;
+            box-shadow: 0 0 16px rgba(212, 168, 83, 0.8), 0 0 40px rgba(212, 168, 83, 0.3);
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 5;
+        }
+
+        .coin-edge-line.show {
+            height: 70%;
+            opacity: 1;
+        }
+
+        .coin.edge-glow {
+            animation: edgeGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes edgeGlow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(212, 168, 83, 0.4)); }
+            50% { filter: drop-shadow(0 0 24px rgba(212, 168, 83, 0.9)); }
+        }
+
+        .result-message.edge {
+            color: var(--success);
+        }
+
+        /* Distribution Stats */
+        .dist-section {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .dist-bar {
+            display: flex;
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+
+        .dist-segment {
+            height: 100%;
+            transition: width 0.4s ease;
+        }
+
+        .dist-segment.heads { background: var(--accent); }
+        .dist-segment.tails { background: var(--danger); }
+        .dist-segment.edge { background: var(--success); }
+
+        .dist-legend {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 8px;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+
+        .dist-legend span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .dist-legend .dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+        }
+
         /* Reset Button */
         .reset-btn {
             background: transparent;
@@ -841,11 +920,16 @@
             margin-bottom: 8px;
         }
 
-        .pwd-box .pwd-submit {
+        .pwd-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .pwd-submit {
             background: var(--accent);
             color: var(--bg);
             border: none;
-            width: 100%;
             padding: 12px;
             border-radius: 10px;
             font-size: 0.9rem;
@@ -853,8 +937,24 @@
             cursor: pointer;
         }
 
-        .pwd-box .pwd-submit:active {
+        .pwd-submit:active {
             transform: scale(0.97);
+        }
+
+        .pwd-cancel {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .pwd-cancel:active {
+            border-color: var(--danger);
+            color: var(--danger);
         }
     </style>
 </head>
@@ -883,6 +983,7 @@
                     <div class="coin-face coin-heads">H</div>
                     <div class="coin-face coin-tails">T</div>
                 </div>
+                <div class="coin-edge-line" id="coinEdge"></div>
             </div>
             <div class="flip-hint">点击硬币抛掷</div>
         </div>
@@ -943,6 +1044,10 @@
 
         <div class="footer-stats">
             <div class="total-flips">总抛掷次数: <span id="totalFlips">0</span></div>
+            <div class="dist-section" id="distSection" style="display:none;">
+                <div class="dist-bar" id="distBar"></div>
+                <div class="dist-legend" id="distLegend"></div>
+            </div>
         </div>
 
         <button class="reset-btn" id="resetBtn">重置存档</button>
@@ -964,7 +1069,10 @@
             <h3>🔒 后台管理</h3>
             <input type="password" id="pwdInput" placeholder="输入密码" autocomplete="off">
             <div class="pwd-error" id="pwdError"></div>
-            <button class="pwd-submit" id="pwdSubmit">进入</button>
+            <div class="pwd-actions">
+                <button class="pwd-cancel" id="pwdCancel">取消</button>
+                <button class="pwd-submit" id="pwdSubmit">进入</button>
+            </div>
         </div>
     </div>
 
@@ -997,6 +1105,10 @@
                 <div class="admin-row">
                     <label>总正面</label>
                     <input type="number" id="adminTotalHeads" step="1" min="0">
+                </div>
+                <div class="admin-row">
+                    <label>总立起</label>
+                    <input type="number" id="adminTotalEdges" step="1" min="0">
                 </div>
             </div>
 
@@ -1053,6 +1165,10 @@
                     <button class="admin-btn primary full" id="adminApplyBtn">✅ 应用修改</button>
                 </div>
             </div>
+
+            <div class="admin-section">
+                <button class="admin-btn full" id="adminBackBtn" style="border-color:var(--border);color:var(--text-dim);">← 返回游戏</button>
+            </div>
         </div>
     </div>
 
@@ -1067,6 +1183,7 @@
             bestStreak: 0,
             totalFlips: 0,
             totalHeads: 0,
+            totalEdges: 0,
             probLevel: 0,
             valueLevel: 0,
             multLevel: 0,
@@ -1175,6 +1292,9 @@
 
             // Update streak dots
             renderStreakDots();
+
+            // Update distribution stats
+            renderDistribution();
         }
 
         function renderStreakDots() {
@@ -1192,6 +1312,38 @@
                 }
                 track.appendChild(dot);
             }
+        }
+
+        function renderDistribution() {
+            const total = game.totalFlips;
+            const section = document.getElementById('distSection');
+            if (total === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            section.style.display = 'block';
+
+            const heads = game.totalHeads;
+            const edges = game.totalEdges || 0;
+            const tails = total - heads - edges;
+
+            const headsPct = ((heads / total) * 100).toFixed(1);
+            const tailsPct = ((tails / total) * 100).toFixed(1);
+            const edgesPct = ((edges / total) * 100).toFixed(1);
+
+            const bar = document.getElementById('distBar');
+            bar.innerHTML = `
+                <div class="dist-segment heads" style="width:${headsPct}%"></div>
+                <div class="dist-segment tails" style="width:${tailsPct}%"></div>
+                <div class="dist-segment edge" style="width:${edgesPct}%"></div>
+            `;
+
+            const legend = document.getElementById('distLegend');
+            legend.innerHTML = `
+                <span><span class="dot" style="background:var(--accent)"></span>正面 ${heads} (${headsPct}%)</span>
+                <span><span class="dot" style="background:var(--danger)"></span>反面 ${tails} (${tailsPct}%)</span>
+                ${edges > 0 ? `<span><span class="dot" style="background:var(--success)"></span>立起 ${edges} (${edgesPct}%)</span>` : ''}
+            `;
         }
 
         // Floating Text
@@ -1220,14 +1372,25 @@
             coinArea.classList.remove('shake');
 
             // Determine result before animation
-            const isHeads = Math.random() < getProb();
+            const EDGE_CHANCE = 0.005;
+            const roll = Math.random();
+            let resultType;
+            if (roll < EDGE_CHANCE) {
+                resultType = 'edge';
+            } else if (roll < EDGE_CHANCE + getProb() * (1 - EDGE_CHANCE)) {
+                resultType = 'heads';
+            } else {
+                resultType = 'tails';
+            }
 
             // Pick the right animation class based on current state -> target state
             const currentRot = coin.style.transform || '';
             const isCurrentlyTails = currentRot.includes('180');
+            // For edge, randomly pick heads or tails animation for visual variety
+            const isHeadsAnim = resultType === 'heads' || (resultType === 'edge' && Math.random() < 0.5);
             const animClass = isCurrentlyTails
-                ? (isHeads ? 'flip-th' : 'flip-tt')
-                : (isHeads ? 'flip-hh' : 'flip-ht');
+                ? (isHeadsAnim ? 'flip-th' : 'flip-tt')
+                : (isHeadsAnim ? 'flip-hh' : 'flip-ht');
             
             coin.classList.add(animClass);
 
@@ -1239,7 +1402,27 @@
                 const centerX = rect.left + rect.width / 2;
                 const centerY = rect.top + rect.height / 2;
 
-                if (isHeads) {
+                // Hide edge visual from previous flip
+                document.getElementById('coinEdge').classList.remove('show');
+                coin.classList.remove('edge-glow');
+
+                if (resultType === 'edge') {
+                    // Edge - coin stands on its side
+                    const endRot = isHeadsAnim ? 'rotateY(0deg)' : 'rotateY(180deg)';
+                    coin.style.transform = endRot;
+                    game.streak = 0;
+                    game.totalEdges++;
+
+                    setTimeout(() => {
+                        document.getElementById('coinEdge').classList.add('show');
+                        coin.classList.add('edge-glow');
+                    }, 50);
+
+                    resultMsg.textContent = '🪙 硬币立起来了！连击重置';
+                    resultMsg.className = 'result-message edge';
+                    coinArea.classList.add('shake');
+                    showFloatText('立起!', false, centerX - 20, centerY - 40);
+                } else if (resultType === 'heads') {
                     // Heads
                     coin.style.transform = 'rotateY(0deg)';
                     game.streak++;
@@ -1309,6 +1492,7 @@
             stats.innerHTML = `
                 总抛掷: ${game.totalFlips} 次<br>
                 总正面: ${game.totalHeads} 次<br>
+                总立起: ${game.totalEdges || 0} 次<br>
                 当前金币: ${formatMoney(game.coins)}
             `;
             overlay.classList.add('show');
@@ -1332,6 +1516,7 @@
                 bestStreak: 0,
                 totalFlips: 0,
                 totalHeads: 0,
+                totalEdges: 0,
                 probLevel: 0,
                 valueLevel: 0,
                 multLevel: 0,
@@ -1414,6 +1599,7 @@
             document.getElementById('adminBestStreak').value = game.bestStreak;
             document.getElementById('adminTotalFlips').value = game.totalFlips;
             document.getElementById('adminTotalHeads').value = game.totalHeads;
+            document.getElementById('adminTotalEdges').value = game.totalEdges || 0;
 
             const probPct = Math.round(getProb() * 100);
             document.getElementById('adminProb').value = probPct;
@@ -1515,6 +1701,7 @@
             const bestStreak = parseInt(document.getElementById('adminBestStreak').value);
             const totalFlips = parseInt(document.getElementById('adminTotalFlips').value);
             const totalHeads = parseInt(document.getElementById('adminTotalHeads').value);
+            const totalEdges = parseInt(document.getElementById('adminTotalEdges').value);
             const probPct = parseInt(document.getElementById('adminProb').value);
             const value = parseFloat(document.getElementById('adminValue').value);
             const mult = parseFloat(document.getElementById('adminMult').value);
@@ -1529,6 +1716,7 @@
             if (!isNaN(bestStreak) && bestStreak >= 0) game.bestStreak = bestStreak;
             if (!isNaN(totalFlips) && totalFlips >= 0) game.totalFlips = totalFlips;
             if (!isNaN(totalHeads) && totalHeads >= 0) game.totalHeads = totalHeads;
+            if (!isNaN(totalEdges) && totalEdges >= 0) game.totalEdges = totalEdges;
 
             // Apply core params (stored in game object for persistence)
             if (!isNaN(probPct) && probPct >= 0 && probPct <= 100) {
@@ -1557,6 +1745,12 @@
             document.getElementById('adminApplyBtn').textContent = '✅ 已应用';
             setTimeout(() => document.getElementById('adminApplyBtn').textContent = '✅ 应用修改', 1500);
         });
+
+        // Admin back button
+        document.getElementById('adminBackBtn').addEventListener('click', hideAdminPanel);
+
+        // Password cancel button
+        document.getElementById('pwdCancel').addEventListener('click', hidePasswordModal);
 
         // Close admin on Escape
         document.addEventListener('keydown', (e) => {
